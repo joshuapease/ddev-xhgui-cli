@@ -65,6 +65,9 @@ ddev xhgui on
 ddev add-on get "$ADDON_DIR"
 ddev restart
 
+# Re-enable XHGui after restart (restart disables it)
+ddev xhgui on
+
 echo ""
 echo "==> Generating profiling data..."
 
