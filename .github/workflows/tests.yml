@@ -1,0 +1,49 @@
+name: tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "25 08 * * *"
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        type: boolean
+        description: Debug with tmate
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  php-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+      - run: |
+          failed=0
+          for f in tests/php/*.php; do
+            echo "Running $f..."
+            if ! php "$f"; then
+              failed=1
+            fi
+          done
+          exit $failed
+
+  integration:
+    strategy:
+      matrix:
+        ddev_version: [stable, HEAD]
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ddev/github-action-add-on-test@v2
+        with:
+          ddev_version: ${{ matrix.ddev_version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          debug_enabled: ${{ github.event.inputs.debug_enabled }}
+          addon_repository: ${{ env.GITHUB_REPOSITORY }}
+          addon_ref: ${{ env.GITHUB_REF }}
