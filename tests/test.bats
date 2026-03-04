@@ -169,11 +169,12 @@ PHPEOF
   ddev xhgui on >/dev/null 2>&1
   sleep 2
 
-  run ddev xhgui-query runs --format json --url /this-url-definitely-does-not-exist
-  [ "$status" -eq 0 ]
+  # Capture stdout separately (stderr has informational message)
+  local json_output
+  json_output=$(ddev xhgui-query runs --format json --url /this-url-definitely-does-not-exist)
 
   # stdout should be valid JSON (empty array)
-  echo "$output" | php -r '
+  echo "$json_output" | php -r '
     $data = json_decode(file_get_contents("php://stdin"), true);
     if (!is_array($data)) { echo "INVALID JSON\n"; exit(1); }
     if (count($data) !== 0) { echo "Expected empty array\n"; exit(1); }
