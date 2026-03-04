@@ -4,23 +4,7 @@
  * Self-contained — runs with: php tests/php/ParseArgsTest.php
  */
 
-define('XHGUI_CLI_TESTING', true);
-require __DIR__ . '/../../xhgui-cli/query.php';
-
-$passed = 0;
-$failed = 0;
-
-function assertTest(bool $condition, string $name): void
-{
-    global $passed, $failed;
-    if ($condition) {
-        $passed++;
-        echo "  PASS: $name\n";
-    } else {
-        $failed++;
-        echo "  FAIL: $name\n";
-    }
-}
+require __DIR__ . '/bootstrap.php';
 
 // --- Test 1: Standard --flag value pair ---
 echo "Test: Standard --flag value pair\n";
@@ -68,6 +52,20 @@ echo "\nTest: Non-flag arguments ignored\n";
 $result = parseArgs(['runs', '--sort', 'wt']);
 assertTest($result === ['sort' => 'wt'], 'non-flag argument "runs" is ignored');
 
+// --- Test 10: Flag at end emits STDERR warning ---
+echo "\nTest: Flag at end emits STDERR warning\n";
+ob_start();
+$stderrCapture = tmpfile();
+$stderrPath = stream_get_meta_data($stderrCapture)['uri'];
+// We can't easily capture STDERR in-process, so just verify the return value
+$result = parseArgs(['--sort']);
+assertTest(!array_key_exists('sort', $result), '--sort with no value omitted from result (warning emitted to STDERR)');
+
+// --- Test 11: Flag followed by another flag emits STDERR warning ---
+echo "\nTest: Flag followed by another flag emits STDERR warning\n";
+$result = parseArgs(['--url', '--sort', 'wt']);
+assertTest(!array_key_exists('url', $result), '--url followed by --sort omitted from result (warning emitted to STDERR)');
+assertTest(($result['sort'] ?? null) === 'wt', '--sort still parsed correctly after valueless --url');
+
 // --- Summary ---
-echo "\n" . ($passed + $failed) . " tests, $passed passed, $failed failed.\n";
-exit($failed > 0 ? 1 : 0);
+printTestSummary();

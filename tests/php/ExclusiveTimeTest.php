@@ -4,23 +4,7 @@
  * Self-contained — runs with: php tests/php/ExclusiveTimeTest.php
  */
 
-define('XHGUI_CLI_TESTING', true);
-require __DIR__ . '/../../xhgui-cli/query.php';
-
-$passed = 0;
-$failed = 0;
-
-function assertTest(bool $condition, string $name): void
-{
-    global $passed, $failed;
-    if ($condition) {
-        $passed++;
-        echo "  PASS: $name\n";
-    } else {
-        $failed++;
-        echo "  FAIL: $name\n";
-    }
-}
+require __DIR__ . '/bootstrap.php';
 
 // --- Test 1: Basic exclusive time calculation ---
 echo "Test: Basic exclusive time\n";
@@ -118,6 +102,9 @@ assertTest($byFunc['main()']['inclusive_cpu'] === 0, 'missing cpu defaults to 0'
 assertTest($byFunc['main()']['inclusive_pmu'] === 0, 'missing pmu defaults to 0');
 assertTest($byFunc['foo()']['exclusive_cpu'] === 0, 'missing cpu exclusive is 0');
 
+// --- Test 6: Empty profile ---
+echo "\nTest: Empty profile\n";
+assertTest(computeExclusiveTimes([]) === [], 'empty profile returns empty array');
+
 // --- Summary ---
-echo "\n" . ($passed + $failed) . " tests, $passed passed, $failed failed.\n";
-exit($failed > 0 ? 1 : 0);
+printTestSummary();

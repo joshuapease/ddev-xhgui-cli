@@ -4,23 +4,7 @@
  * Self-contained — runs with: php tests/php/InputValidationTest.php
  */
 
-define('XHGUI_CLI_TESTING', true);
-require __DIR__ . '/../../xhgui-cli/query.php';
-
-$passed = 0;
-$failed = 0;
-
-function assertTest(bool $condition, string $name): void
-{
-    global $passed, $failed;
-    if ($condition) {
-        $passed++;
-        echo "  PASS: $name\n";
-    } else {
-        $failed++;
-        echo "  FAIL: $name\n";
-    }
-}
+require __DIR__ . '/bootstrap.php';
 
 // --- Test 1: Run ID validation ---
 echo "Test: Run ID regex validation\n";
@@ -121,5 +105,4 @@ foreach ($testCases as [$input, $expected]) {
 }
 
 // --- Summary ---
-echo "\n" . ($passed + $failed) . " tests, $passed passed, $failed failed.\n";
-exit($failed > 0 ? 1 : 0);
+printTestSummary();

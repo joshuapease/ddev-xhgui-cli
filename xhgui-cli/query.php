@@ -9,6 +9,9 @@ ini_set('memory_limit', '256M');
 
 // --- Constants ---
 
+// Timezone convention: JSON output uses gmdate() (UTC) for machine consumption.
+// Table output uses date() (local timezone) for human readability.
+
 const EXIT_SUCCESS = 0;
 const EXIT_USAGE = 1;
 const EXIT_INFRA = 2;
@@ -172,7 +175,7 @@ function executeRuns(PDO $pdo, array $opts, string $format, int $limit): void
                 'url'              => $row['url'],
                 'wall_time_us'     => (int)$row['main_wt'],
                 'cpu_time_us'      => (int)$row['main_cpu'],
-                'peak_memory_bytes'=> (int)$row['main_pmu'],
+                'peak_memory_bytes' => (int)$row['main_pmu'],
                 'timestamp'        => gmdate('Y-m-d\TH:i:s\Z', (int)$row['request_ts']),
             ];
         }, $rows);
@@ -278,14 +281,14 @@ function executeTopFunctions(PDO $pdo, array $opts, string $format, int $limit):
             'timestamp' => gmdate('Y-m-d\TH:i:s\Z', (int)$run['request_ts']),
             'functions' => array_map(function ($f) {
                 return [
-                    'function'                   => $f['function'],
-                    'call_count'                 => $f['call_count'],
-                    'inclusive_wall_time_us'      => $f['inclusive_wt'],
-                    'exclusive_wall_time_us'      => $f['exclusive_wt'],
-                    'inclusive_cpu_time_us'        => $f['inclusive_cpu'],
-                    'exclusive_cpu_time_us'        => $f['exclusive_cpu'],
-                    'inclusive_peak_memory_bytes'  => $f['inclusive_pmu'],
-                    'exclusive_peak_memory_bytes'  => $f['exclusive_pmu'],
+                    'function'                  => $f['function'],
+                    'call_count'                => $f['call_count'],
+                    'inclusive_wall_time_us'     => $f['inclusive_wt'],
+                    'exclusive_wall_time_us'     => $f['exclusive_wt'],
+                    'inclusive_cpu_time_us'      => $f['inclusive_cpu'],
+                    'exclusive_cpu_time_us'      => $f['exclusive_cpu'],
+                    'inclusive_peak_memory_bytes' => $f['inclusive_pmu'],
+                    'exclusive_peak_memory_bytes' => $f['exclusive_pmu'],
                 ];
             }, $functions),
         ];
@@ -491,6 +494,8 @@ function parseArgs(array $args): array
             } elseif ($i + 1 < $count && strpos($args[$i + 1], '--') !== 0) {
                 $opts[$key] = $args[$i + 1];
                 $i++;
+            } else {
+                fwrite(STDERR, "Warning: Flag '$arg' has no value and will be ignored.\n");
             }
         }
         $i++;
