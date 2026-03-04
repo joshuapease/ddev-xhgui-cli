@@ -454,33 +454,33 @@ jobs:
 
 ### Phase 1: Project Scaffolding
 
-- [ ] Initialize git repository with addon structure from ddev-addon-template
-- [ ] Write `install.yaml` manifest with `ddev_version_constraint: ">= v1.24.4"`
-- [ ] Add `.gitattributes` with `commands/web/* text eol=lf`
-- [ ] Create bash web command with TTY detection via env var
-- [ ] Create PHP script skeleton: `getopt()` argument parsing, PDO connection with `EMULATE_PREPARES => false`, database/table validation, `memory_limit` set
-- [ ] Add CI workflow: `php-unit` job (PHP 8.1, runs `tests/php/*.php`) + `integration` job (`ddev/github-action-add-on-test@v2`)
-- [ ] Create `tests/setup-local-test.sh` for local development verification
+- [x] Initialize git repository with addon structure from ddev-addon-template
+- [x] Write `install.yaml` manifest with `ddev_version_constraint: ">= v1.24.4"`
+- [x] Add `.gitattributes` with `commands/web/* text eol=lf`
+- [x] Create bash web command with TTY detection via env var
+- [x] Create PHP script skeleton: `getopt()` argument parsing, PDO connection with `EMULATE_PREPARES => false`, database/table validation, `memory_limit` set
+- [x] Add CI workflow: `php-unit` job (PHP 8.1, runs `tests/php/*.php`) + `integration` job (`ddev/github-action-add-on-test@v2`)
+- [x] Create `tests/setup-local-test.sh` for local development verification
 - [ ] Verify addon installs into a local test DDEV project from local path
 
 ### Phase 2: Core Commands
 
-- [ ] Implement `runs` subcommand: SQL query on denormalized columns with explicit column list, `--sort` via allowlist mapping, `--limit` via `PDO::PARAM_INT`, `--url` via LIKE with escaped wildcards and `ESCAPE '\\'` clause, table + JSON output
-- [ ] Implement `top-functions` subcommand: profile blob fetch with `LENGTH()` pre-check, JSON decode, O(E) hash map for exclusive time, negative value floor at 0, sorting, table + JSON output
-- [ ] Write PHP unit tests for exclusive time calculation and input validation (run locally without DDEV)
+- [x] Implement `runs` subcommand: SQL query on denormalized columns with explicit column list, `--sort` via allowlist mapping, `--limit` via `PDO::PARAM_INT`, `--url` via LIKE with escaped wildcards and `ESCAPE '\\'` clause, table + JSON output
+- [x] Implement `top-functions` subcommand: profile blob fetch with `LENGTH()` pre-check, JSON decode, O(E) hash map for exclusive time, negative value floor at 0, sorting, table + JSON output
+- [x] Write PHP unit tests for exclusive time calculation and input validation (run locally without DDEV)
 
 ### Phase 3: Polish and Error Handling
 
-- [ ] Input validation: `--run-id` regex `/^[0-9a-f]{24}$/i`, `--limit` range [1,1000], `--sort` and `--format` allowlists
-- [ ] JSON error envelope on stdout when format is JSON + error occurs
-- [ ] Empty results: valid JSON on stdout, helpful message on stderr
-- [ ] Invalid `--run-id` error with suggestion to run `ddev xhgui-query runs`
-- [ ] Human-readable formatting: microseconds to milliseconds, bytes to MB
-- [ ] Corrupt/gzip profile blob detection and graceful handling (gzip is migration edge case only)
-- [ ] PostgreSQL detection with clear unsupported message
-- [ ] XHGui-not-enabled detection (missing `results` table or `xhgui` database)
-- [ ] PDO exceptions caught with generic messages (no leaking connection details)
-- [ ] Strip non-printable characters from table output
+- [x] Input validation: `--run-id` regex `/^[0-9a-f]{24}$/i`, `--limit` range [1,1000], `--sort` and `--format` allowlists
+- [x] JSON error envelope on stdout when format is JSON + error occurs
+- [x] Empty results: valid JSON on stdout, helpful message on stderr
+- [x] Invalid `--run-id` error with suggestion to run `ddev xhgui-query runs`
+- [x] Human-readable formatting: microseconds to milliseconds, bytes to MB
+- [x] Corrupt/gzip profile blob detection and graceful handling (gzip is migration edge case only)
+- [x] PostgreSQL detection with clear unsupported message
+- [x] XHGui-not-enabled detection (missing `results` table or `xhgui` database)
+- [x] PDO exceptions caught with generic messages (no leaking connection details)
+- [x] Strip non-printable characters from table output
 
 ### Phase 4: Testing
 
@@ -488,8 +488,8 @@ jobs:
 
 During development, use a local test project to verify commands against real profiling data:
 
-- [ ] Create `test-project/` directory (gitignored) with a minimal DDEV PHP project
-- [ ] Script: `tests/setup-local-test.sh` that automates:
+- [x] Create `test-project/` directory (gitignored) with a minimal DDEV PHP project
+- [x] Script: `tests/setup-local-test.sh` that automates:
   1. `ddev config --project-name xhgui-cli-test --project-type php`
   2. `ddev add-on get ddev/ddev-xhgui` (installs XHGui with profiling)
   3. `ddev add-on get .` (installs this addon from local source)
@@ -497,48 +497,48 @@ During development, use a local test project to verify commands against real pro
   5. Creates a simple `index.php` that does some work (DB queries, loops) to generate non-trivial profiles
   6. Hits the page via `curl` to generate profiling data
   7. Polls the database until profile data exists
-- [ ] Script: `tests/teardown-local-test.sh` — `ddev stop --remove-data` and cleanup
-- [ ] Add `test-project/` to `.gitignore`
+- [x] Script: `tests/teardown-local-test.sh` — `ddev stop --remove-data` and cleanup
+- [x] Add `test-project/` to `.gitignore`
 
 #### PHP Unit Tests (no DDEV required)
 
 Test pure PHP logic in isolation without needing a running DDEV environment. Uses PHP's built-in `assert()` — no PHPUnit dependency needed:
 
-- [ ] `tests/php/ExclusiveTimeTest.php`: Tests the O(E) exclusive time calculation
+- [x] `tests/php/ExclusiveTimeTest.php`: Tests the O(E) exclusive time calculation
   - Known profile blob with pre-calculated expected exclusive times
   - Edge case: single function (`main()` only)
   - Edge case: negative exclusive time floors to 0
   - Edge case: function appears as both caller and callee in different edges
-- [ ] `tests/php/InputValidationTest.php`: Tests argument validation
+- [x] `tests/php/InputValidationTest.php`: Tests argument validation
   - `--run-id` regex accepts valid 24-char hex, rejects others
   - `--sort` allowlist rejects unknown values
   - `--limit` range validation [1, 1000]
   - `--url` wildcard escaping (`%` and `_` escaped properly)
-- [ ] `tests/php/FormattingTest.php`: Tests output formatting
+- [x] `tests/php/FormattingTest.php`: Tests output formatting
   - Microseconds → milliseconds conversion
   - Bytes → MB conversion
   - JSON output is valid and matches expected schema
   - Table output column alignment with known input data
-- [ ] Run PHP unit tests locally: `php tests/php/ExclusiveTimeTest.php` (each file is self-contained and runnable)
+- [x] Run PHP unit tests locally: `php tests/php/ExclusiveTimeTest.php` (each file is self-contained and runnable)
 
 #### Bats Integration Tests (end-to-end in CI)
 
-- [ ] Bats test: addon installs successfully
-- [ ] Bats test: `runs` returns results after profiling
-- [ ] Bats test: `runs --url` filters correctly
-- [ ] Bats test: `runs --format json` piped output is valid parseable JSON (no stderr mixed in)
-- [ ] Bats test: `top-functions` parses profile and shows exclusive times
-- [ ] Bats test: `top-functions --run-id` targets specific run
-- [ ] Bats test: unknown subcommand exits 1 with usage message
-- [ ] Bats test: empty results exit 0 with valid JSON
-- [ ] Use database polling (not `sleep`) in test setup to wait for profile data
+- [x] Bats test: addon installs successfully
+- [x] Bats test: `runs` returns results after profiling
+- [x] Bats test: `runs --url` filters correctly
+- [x] Bats test: `runs --format json` piped output is valid parseable JSON (no stderr mixed in)
+- [x] Bats test: `top-functions` parses profile and shows exclusive times
+- [x] Bats test: `top-functions --run-id` targets specific run
+- [x] Bats test: unknown subcommand exits 1 with usage message
+- [x] Bats test: empty results exit 0 with valid JSON
+- [x] Use database polling (not `sleep`) in test setup to wait for profile data
 
 ### Phase 5: Documentation and Release
 
-- [ ] README: installation, quick start, command reference, JSON output examples
-- [ ] README: requirements (DDEV >= 1.24.4, MySQL/MariaDB backend)
-- [ ] README: known limitations (MySQL/MariaDB only, no aggregation, no flame charts)
-- [ ] README: note that JSON output schemas are stable within major versions
+- [x] README: installation, quick start, command reference, JSON output examples
+- [x] README: requirements (DDEV >= 1.24.4, MySQL/MariaDB backend)
+- [x] README: known limitations (MySQL/MariaDB only, no aggregation, no flame charts)
+- [x] README: note that JSON output schemas are stable within major versions
 - [ ] Add `ddev-get` topic to GitHub repo for registry listing
 - [ ] Tag v0.1.0 release
 
