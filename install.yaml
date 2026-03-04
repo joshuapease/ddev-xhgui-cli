@@ -1,0 +1,12 @@
+name: xhgui-cli
+ddev_version_constraint: ">= v1.24.4"
+dependencies: []
+project_files:
+  - commands/web/xhgui-query
+  - xhgui-cli/query.php
+global_files: []
+pre_install_actions: []
+post_install_actions:
+  - chmod +x ${DDEV_APPROOT}/.ddev/commands/web/xhgui-query
+removal_actions:
+  - rmdir ${DDEV_APPROOT}/.ddev/xhgui-cli 2>/dev/null || true

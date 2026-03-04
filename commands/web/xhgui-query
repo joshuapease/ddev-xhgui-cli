@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#ddev-generated
+## Description: Query XHGui profiling data from the CLI
+## Usage: xhgui-query <subcommand> [flags]
+## Example: "ddev xhgui-query runs --limit 10"
+## ExecRaw: true
+
+set -eu -o pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PHP_SCRIPT="${SCRIPT_DIR}/../../xhgui-cli/query.php"
+
+if [ ! -f "$PHP_SCRIPT" ]; then
+  echo "Error: query.php not found at $PHP_SCRIPT" >&2
+  echo "Try reinstalling: ddev add-on get owner/ddev-xhgui-cli" >&2
+  exit 2
+fi
+
+# TTY detection passed as env var (not flag) to keep $argv user-facing only
+export XHGUI_IS_TTY=0
+[ -t 1 ] && XHGUI_IS_TTY=1
+
+# exec replaces this shell -- PHP exit code becomes the command exit code
+exec php "$PHP_SCRIPT" "$@"
