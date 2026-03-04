@@ -20,8 +20,9 @@ teardown() {
   [ "$TESTDIR" != "" ] && rm -rf "$TESTDIR"
 }
 
-health_checks() {
-  ddev exec "curl -s https://localhost" >/dev/null
+install_addon() {
+  ddev add-on get "$DIR" >/dev/null
+  ddev restart >/dev/null
 }
 
 wait_for_profile_data() {
@@ -50,8 +51,10 @@ for ($i = 0; $i < 10000; $i++) {
 echo "Hello from xhgui-cli test. Sum: $sum";
 PHPEOF
 
-  # Enable profiling and hit the page
+  # Enable profiling (must be done after restart since restart disables it)
   ddev xhgui on >/dev/null 2>&1
+
+  # Hit the page to generate data
   ddev exec "curl -s https://localhost" >/dev/null
 
   # Wait for profile data to appear
@@ -61,8 +64,7 @@ PHPEOF
 @test "addon installs successfully" {
   cd "$TESTDIR"
   echo "# ddev add-on get $DIR with project $PROJNAME in $TESTDIR ($(pwd))" >&3
-  ddev add-on get "$DIR"
-  ddev restart >/dev/null
+  install_addon
 
   # Verify command is available
   run ddev xhgui-query --help
@@ -72,62 +74,55 @@ PHPEOF
 
 @test "runs returns results after profiling" {
   cd "$TESTDIR"
-  ddev add-on get "$DIR" >/dev/null
-  ddev restart >/dev/null
+  install_addon
   generate_profile_data
 
-  run ddev xhgui-query runs
+  run ddev xhgui-query runs --format table
   [ "$status" -eq 0 ]
   [[ "$output" == *"WALL (ms)"* ]]
 }
 
 @test "runs --url filters correctly" {
   cd "$TESTDIR"
-  ddev add-on get "$DIR" >/dev/null
-  ddev restart >/dev/null
+  install_addon
   generate_profile_data
 
   # Filter for a URL that exists
-  run ddev xhgui-query runs --url /
+  run ddev xhgui-query runs --url / --format json
   [ "$status" -eq 0 ]
 
-  # Filter for a URL that does not exist
-  run ddev xhgui-query runs --url /nonexistent-path-xyz
+  # Filter for a URL that does not exist — should still succeed with empty results
+  run ddev xhgui-query runs --url /nonexistent-path-xyz --format json
   [ "$status" -eq 0 ]
 }
 
 @test "runs --format json piped output is valid JSON" {
   cd "$TESTDIR"
-  ddev add-on get "$DIR" >/dev/null
-  ddev restart >/dev/null
+  install_addon
   generate_profile_data
 
   local json_output
   json_output=$(ddev xhgui-query runs --format json)
 
-  # Validate it's parseable JSON
-  echo "$json_output" | python3 -m json.tool >/dev/null 2>&1
-  [ $? -eq 0 ]
-
-  # Verify it has expected fields
-  echo "$json_output" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-assert isinstance(data, list), 'Expected array'
-if len(data) > 0:
-    assert 'wall_time_us' in data[0], 'Missing wall_time_us'
-    assert 'cpu_time_us' in data[0], 'Missing cpu_time_us'
-    assert 'timestamp' in data[0], 'Missing timestamp'
-"
+  # Validate it's parseable JSON using php (available in all environments)
+  echo "$json_output" | php -r '
+    $data = json_decode(file_get_contents("php://stdin"), true);
+    if (!is_array($data)) { echo "INVALID JSON\n"; exit(1); }
+    if (count($data) > 0) {
+      if (!isset($data[0]["wall_time_us"])) { echo "Missing wall_time_us\n"; exit(1); }
+      if (!isset($data[0]["cpu_time_us"])) { echo "Missing cpu_time_us\n"; exit(1); }
+      if (!isset($data[0]["timestamp"])) { echo "Missing timestamp\n"; exit(1); }
+    }
+    echo "VALID\n";
+  '
 }
 
 @test "top-functions parses profile and shows exclusive times" {
   cd "$TESTDIR"
-  ddev add-on get "$DIR" >/dev/null
-  ddev restart >/dev/null
+  install_addon
   generate_profile_data
 
-  run ddev xhgui-query top-functions
+  run ddev xhgui-query top-functions --format table
   [ "$status" -eq 0 ]
   [[ "$output" == *"EXCL WALL (ms)"* ]]
   [[ "$output" == *"FUNCTION"* ]]
@@ -135,30 +130,31 @@ if len(data) > 0:
 
 @test "top-functions --run-id targets specific run" {
   cd "$TESTDIR"
-  ddev add-on get "$DIR" >/dev/null
-  ddev restart >/dev/null
+  install_addon
   generate_profile_data
 
-  # Get a run ID from JSON output
+  # Get a run ID from JSON output using php
   local run_id
-  run_id=$(ddev xhgui-query runs --format json --limit 1 | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['id'])")
+  run_id=$(ddev xhgui-query runs --format json --limit 1 | php -r '
+    $data = json_decode(file_get_contents("php://stdin"), true);
+    echo $data[0]["id"];
+  ')
 
   run ddev xhgui-query top-functions --run-id "$run_id" --format json
   [ "$status" -eq 0 ]
 
-  echo "$output" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-assert 'run_id' in data, 'Missing run_id'
-assert 'functions' in data, 'Missing functions'
-assert len(data['functions']) > 0, 'Expected at least one function'
-"
+  echo "$output" | php -r '
+    $data = json_decode(file_get_contents("php://stdin"), true);
+    if (!isset($data["run_id"])) { echo "Missing run_id\n"; exit(1); }
+    if (!isset($data["functions"])) { echo "Missing functions\n"; exit(1); }
+    if (count($data["functions"]) === 0) { echo "Expected at least one function\n"; exit(1); }
+    echo "VALID\n";
+  '
 }
 
 @test "unknown subcommand exits 1 with usage message" {
   cd "$TESTDIR"
-  ddev add-on get "$DIR" >/dev/null
-  ddev restart >/dev/null
+  install_addon
 
   run ddev xhgui-query notreal
   [ "$status" -eq 1 ]
@@ -167,8 +163,7 @@ assert len(data['functions']) > 0, 'Expected at least one function'
 
 @test "empty results exit 0 with valid JSON" {
   cd "$TESTDIR"
-  ddev add-on get "$DIR" >/dev/null
-  ddev restart >/dev/null
+  install_addon
 
   # Enable xhgui to create the database/table but don't generate data
   ddev xhgui on >/dev/null 2>&1
@@ -178,10 +173,10 @@ assert len(data['functions']) > 0, 'Expected at least one function'
   [ "$status" -eq 0 ]
 
   # stdout should be valid JSON (empty array)
-  echo "$output" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-assert isinstance(data, list), 'Expected array'
-assert len(data) == 0, 'Expected empty array'
-"
+  echo "$output" | php -r '
+    $data = json_decode(file_get_contents("php://stdin"), true);
+    if (!is_array($data)) { echo "INVALID JSON\n"; exit(1); }
+    if (count($data) !== 0) { echo "Expected empty array\n"; exit(1); }
+    echo "VALID\n";
+  '
 }

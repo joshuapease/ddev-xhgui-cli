@@ -61,13 +61,9 @@ if (!in_array($subcommand, ['runs', 'top-functions'], true)) {
     exit(EXIT_USAGE);
 }
 
-// Strip subcommand from argv for getopt
-$argv = array_merge([$argv[0]], array_slice($argv, 2));
-$argc = count($argv);
-
-$shortOpts = '';
-$longOpts = ['limit:', 'sort:', 'format:', 'url:', 'run-id:', 'help'];
-$opts = getopt($shortOpts, $longOpts);
+// Parse flags from argv (manual parsing -- PHP's getopt() reads from process argv
+// and BSD getopt stops at the first non-option argument like the subcommand name)
+$opts = parseArgs(array_slice($argv, 2));
 
 if (isset($opts['help'])) {
     printUsage($subcommand);
@@ -476,6 +472,36 @@ function sanitizeTableValue(string $value): string
 {
     // Strip non-printable and control characters (prevents terminal escape injection)
     return preg_replace('/[\x00-\x1f\x7f]/', '', $value);
+}
+
+// === Argument Parsing ===
+
+/**
+ * Parse --flag value pairs from argv array.
+ * Manual implementation because PHP's getopt() reads from process argv
+ * and BSD getopt stops at the first non-option argument (the subcommand).
+ */
+function parseArgs(array $args): array
+{
+    $opts = [];
+    $i = 0;
+    $count = count($args);
+
+    while ($i < $count) {
+        $arg = $args[$i];
+        if (strpos($arg, '--') === 0) {
+            $key = substr($arg, 2);
+            if ($key === 'help') {
+                $opts['help'] = true;
+            } elseif ($i + 1 < $count && strpos($args[$i + 1], '--') !== 0) {
+                $opts[$key] = $args[$i + 1];
+                $i++;
+            }
+        }
+        $i++;
+    }
+
+    return $opts;
 }
 
 // === Error Handling ===
