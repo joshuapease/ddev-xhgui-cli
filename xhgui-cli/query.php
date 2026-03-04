@@ -36,6 +36,11 @@ const RUN_ID_PATTERN = '/^[0-9a-f]{24}$/i';
 
 const LARGE_PROFILE_THRESHOLD = 20 * 1024 * 1024; // 20MB
 
+// When included from tests, define XHGUI_CLI_TESTING to skip main execution
+if (defined('XHGUI_CLI_TESTING')) {
+    return;
+}
+
 // --- TTY / Format Detection ---
 
 $isTty = getenv('XHGUI_IS_TTY') === '1';
