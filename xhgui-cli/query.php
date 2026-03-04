@@ -105,7 +105,6 @@ try {
     if ($code === 1049) {
         exitError("XHGui database not found. Run 'ddev xhgui on' to enable profiling.", EXIT_INFRA, $format);
     }
-    fwrite(STDERR, "Database connection failed: " . $e->getMessage() . "\n");
     exitError("Could not connect to the XHGui database.", EXIT_INFRA, $format);
 }
 
@@ -255,6 +254,7 @@ function executeTopFunctions(PDO $pdo, array $opts, string $format, int $limit):
 
     // Detect gzip (migration edge case)
     $profile = decodeProfile($profileData);
+    unset($profileData);
     if ($profile === null) {
         exitError("Failed to decode profile data for run '{$run['id']}'. The profile blob may be corrupt.", EXIT_DATA, $format);
     }
@@ -317,17 +317,17 @@ function decodeProfile(string $data): ?array
 }
 
 /**
- * Compute exclusive times using O(E) hash map algorithm.
+ * Compute exclusive times using O(F) hash map algorithm.
  *
  * 1. Single-pass: for each caller==>callee key, build inclusive totals per function
- *    and a map of parent -> [child_metrics, ...]
- * 2. Exclusive = inclusive - sum of direct children's inclusive
+ *    and aggregate child sums per parent inline (O(F) memory, not O(E))
+ * 2. Exclusive = inclusive - aggregated children's inclusive
  * 3. Floor negative values at 0 (XHProf shared-callee limitation)
  */
 function computeExclusiveTimes(array $profile): array
 {
-    $inclusive = [];  // function_name => [wt, cpu, pmu, ct]
-    $children = [];   // parent_name => [[wt, cpu, pmu], ...]
+    $inclusive  = [];  // function_name => [wt, cpu, pmu, ct]
+    $childSums = [];   // parent_name => [wt, cpu, pmu] (aggregated inline)
 
     foreach ($profile as $key => $metrics) {
         $wt  = $metrics['wt']  ?? 0;
@@ -348,8 +348,13 @@ function computeExclusiveTimes(array $profile): array
             $inclusive[$callee]['pmu'] += $pmu;
             $inclusive[$callee]['ct']  += $ct;
 
-            // Track as child of parent
-            $children[$parent][] = ['wt' => $wt, 'cpu' => $cpu, 'pmu' => $pmu];
+            // Aggregate child sums for parent inline
+            if (!isset($childSums[$parent])) {
+                $childSums[$parent] = ['wt' => 0, 'cpu' => 0, 'pmu' => 0];
+            }
+            $childSums[$parent]['wt']  += $wt;
+            $childSums[$parent]['cpu'] += $cpu;
+            $childSums[$parent]['pmu'] += $pmu;
         } else {
             // Root entry (e.g., main())
             $func = $parts[0];
@@ -363,30 +368,20 @@ function computeExclusiveTimes(array $profile): array
         }
     }
 
-    // Compute exclusive = inclusive - sum(children inclusive)
+    // Compute exclusive = inclusive - aggregated children's inclusive
     $result = [];
     foreach ($inclusive as $func => $metrics) {
-        $childWt  = 0;
-        $childCpu = 0;
-        $childPmu = 0;
-
-        if (isset($children[$func])) {
-            foreach ($children[$func] as $child) {
-                $childWt  += $child['wt'];
-                $childCpu += $child['cpu'];
-                $childPmu += $child['pmu'];
-            }
-        }
+        $cs = $childSums[$func] ?? ['wt' => 0, 'cpu' => 0, 'pmu' => 0];
 
         $result[] = [
             'function'      => $func,
             'call_count'    => $metrics['ct'],
             'inclusive_wt'  => $metrics['wt'],
-            'exclusive_wt'  => max(0, $metrics['wt'] - $childWt),
+            'exclusive_wt'  => max(0, $metrics['wt'] - $cs['wt']),
             'inclusive_cpu' => $metrics['cpu'],
-            'exclusive_cpu' => max(0, $metrics['cpu'] - $childCpu),
+            'exclusive_cpu' => max(0, $metrics['cpu'] - $cs['cpu']),
             'inclusive_pmu' => $metrics['pmu'],
-            'exclusive_pmu' => max(0, $metrics['pmu'] - $childPmu),
+            'exclusive_pmu' => max(0, $metrics['pmu'] - $cs['pmu']),
         ];
     }
 
