@@ -1,7 +1,7 @@
 ---
 title: "feat: DDEV XHGui CLI Addon"
 type: feat
-status: active
+status: completed
 date: 2026-03-04
 deepened: 2026-03-04
 ---
@@ -461,7 +461,7 @@ jobs:
 - [x] Create PHP script skeleton: `getopt()` argument parsing, PDO connection with `EMULATE_PREPARES => false`, database/table validation, `memory_limit` set
 - [x] Add CI workflow: `php-unit` job (PHP 8.1, runs `tests/php/*.php`) + `integration` job (`ddev/github-action-add-on-test@v2`)
 - [x] Create `tests/setup-local-test.sh` for local development verification
-- [ ] Verify addon installs into a local test DDEV project from local path
+- [x] Verify addon installs into a local test DDEV project from local path
 
 ### Phase 2: Core Commands
 
