@@ -35,12 +35,12 @@ List recent profiling runs.
 ddev xhgui-query runs [--limit 20] [--url /path] [--sort time|wt|cpu|pmu] [--format table|json]
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--limit` | 20 | Number of runs (max 1000) |
-| `--url` | (none) | Filter by URL substring |
-| `--sort` | `time` | Sort by: `time`, `wt` (wall time), `cpu`, `pmu` (peak memory) |
-| `--format` | auto | `table` when TTY, `json` when piped |
+| Flag       | Default | Description                                                   |
+| ---------- | ------- | ------------------------------------------------------------- |
+| `--limit`  | 20      | Number of runs (max 1000)                                     |
+| `--url`    | (none)  | Filter by URL substring                                       |
+| `--sort`   | `time`  | Sort by: `time`, `wt` (wall time), `cpu`, `pmu` (peak memory) |
+| `--format` | auto    | `table` when TTY, `json` when piped                           |
 
 **Table output:**
 
@@ -73,12 +73,12 @@ Show function-level exclusive time breakdown.
 ddev xhgui-query top-functions [--run-id ID] [--limit 10] [--sort wt|cpu|pmu] [--format table|json]
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--run-id` | (latest) | Target a specific run (24-char hex) |
-| `--limit` | 10 | Number of functions (max 1000) |
-| `--sort` | `wt` | Sort by exclusive: `wt`, `cpu`, `pmu` |
-| `--format` | auto | `table` when TTY, `json` when piped |
+| Flag       | Default  | Description                           |
+| ---------- | -------- | ------------------------------------- |
+| `--run-id` | (latest) | Target a specific run (24-char hex)   |
+| `--limit`  | 10       | Number of functions (max 1000)        |
+| `--sort`   | `wt`     | Sort by exclusive: `wt`, `cpu`, `pmu` |
+| `--format` | auto     | `table` when TTY, `json` when piped   |
 
 **Table output:**
 
@@ -129,12 +129,12 @@ ddev xhgui-query runs --url /page-b --limit 1 | jq '.[0].wall_time_us'
 
 ## Exit Codes
 
-| Code | Meaning | Example |
-|------|---------|---------|
-| 0 | Success (including empty results) | No runs match filter |
-| 1 | Usage error | Invalid flag or subcommand |
-| 2 | Infrastructure error | Database unreachable |
-| 3 | Data error | Run ID not found |
+| Code | Meaning                           | Example                    |
+| ---- | --------------------------------- | -------------------------- |
+| 0    | Success (including empty results) | No runs match filter       |
+| 1    | Usage error                       | Invalid flag or subcommand |
+| 2    | Infrastructure error              | Database unreachable       |
+| 3    | Data error                        | Run ID not found           |
 
 ## Requirements
 
