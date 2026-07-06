@@ -1,4 +1,7 @@
 <?php
+// #ddev-generated
+// Remove the line above if you want to keep local modifications to this file
+// when the add-on is removed or upgraded.
 /**
  * XHGui CLI Query Tool
  *
@@ -11,6 +14,9 @@ ini_set('memory_limit', '256M');
 
 // Timezone convention: JSON output uses gmdate() (UTC) for machine consumption.
 // Table output uses date() (local timezone) for human readability.
+
+// Keep in sync with the git release tag (see docs/plans/2026-07-06-1.0-release-plan.md)
+const XHGUI_CLI_VERSION = '0.1.0';
 
 const EXIT_SUCCESS = 0;
 const EXIT_USAGE = 1;
@@ -32,6 +38,9 @@ const SORT_MAP_FUNCTIONS = [
 
 const VALID_FORMATS = ['table', 'json'];
 
+const FLAGS_RUNS = ['limit', 'url', 'sort', 'format'];
+const FLAGS_TOP_FUNCTIONS = ['run-id', 'limit', 'sort', 'format'];
+
 const LIMIT_MIN = 1;
 const LIMIT_MAX = 1000;
 
@@ -52,6 +61,11 @@ $isTty = getenv('XHGUI_IS_TTY') === '1';
 
 $subcommand = $argv[1] ?? null;
 
+if ($subcommand === '--version') {
+    echo 'xhgui-cli ' . XHGUI_CLI_VERSION . "\n";
+    exit(EXIT_SUCCESS);
+}
+
 if ($subcommand === null || $subcommand === '--help' || $subcommand === '-h') {
     printUsage();
     exit(EXIT_SUCCESS);
@@ -66,7 +80,8 @@ if (!in_array($subcommand, ['runs', 'top-functions'], true)) {
 
 // Parse flags from argv (manual parsing -- PHP's getopt() reads from process argv
 // and BSD getopt stops at the first non-option argument like the subcommand name)
-$opts = parseArgs(array_slice($argv, 2));
+$parsed = parseArgs(array_slice($argv, 2), $subcommand === 'runs' ? FLAGS_RUNS : FLAGS_TOP_FUNCTIONS);
+$opts = $parsed['opts'];
 
 if (isset($opts['help'])) {
     printUsage($subcommand);
@@ -75,9 +90,18 @@ if (isset($opts['help'])) {
 
 // --- Validate Common Options ---
 
+// Resolve format before reporting parse errors so the JSON error envelope applies
 $format = $opts['format'] ?? ($isTty ? 'table' : 'json');
 if (!in_array($format, VALID_FORMATS, true)) {
     exitError("Invalid --format '$format'. Valid values: " . implode(', ', VALID_FORMATS), EXIT_USAGE, $format);
+}
+
+if ($parsed['errors'] !== []) {
+    exitError(
+        implode("\n", $parsed['errors']) . "\nRun 'ddev xhgui-query $subcommand --help' for usage.",
+        EXIT_USAGE,
+        $format
+    );
 }
 
 $limit = isset($opts['limit']) ? (int)$opts['limit'] : ($subcommand === 'runs' ? 20 : 10);
@@ -160,7 +184,7 @@ function executeRuns(PDO $pdo, array $opts, string $format, int $limit): void
 
     if (empty($rows)) {
         if ($format === 'json') {
-            echo "[]";
+            echo json_encode([]);
             fwrite(STDERR, "No profiling runs found. Run 'ddev xhgui on' and visit pages to generate data.\n");
         } else {
             echo "No profiling runs found. Run 'ddev xhgui on' and visit pages to generate data.\n";
@@ -223,7 +247,7 @@ function executeTopFunctions(PDO $pdo, array $opts, string $format, int $limit):
                     'url'       => null,
                     'timestamp' => null,
                     'functions' => [],
-                ], JSON_PRETTY_PRINT);
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
                 fwrite(STDERR, "No profiling runs found. Run 'ddev xhgui on' and visit pages to generate data.\n");
             } else {
                 echo "No profiling runs found. Run 'ddev xhgui on' and visit pages to generate data.\n";
@@ -475,33 +499,72 @@ function sanitizeTableValue(string $value): string
 // === Argument Parsing ===
 
 /**
- * Parse --flag value pairs from argv array.
+ * Parse --flag value and --flag=value pairs from argv array.
  * Manual implementation because PHP's getopt() reads from process argv
  * and BSD getopt stops at the first non-option argument (the subcommand).
+ *
+ * Unknown flags, bare arguments, and flags missing a value are collected
+ * as errors rather than reported here, so the caller can resolve --format
+ * first and honor the JSON error envelope contract.
+ *
+ * Returns ['opts' => [...], 'errors' => [...]].
  */
-function parseArgs(array $args): array
+function parseArgs(array $args, array $allowedFlags): array
 {
     $opts = [];
-    $i = 0;
+    $errors = [];
     $count = count($args);
 
-    while ($i < $count) {
+    for ($i = 0; $i < $count; $i++) {
         $arg = $args[$i];
-        if (strpos($arg, '--') === 0) {
-            $key = substr($arg, 2);
-            if ($key === 'help') {
-                $opts['help'] = true;
-            } elseif ($i + 1 < $count && strpos($args[$i + 1], '--') !== 0) {
-                $opts[$key] = $args[$i + 1];
+
+        if (strpos($arg, '--') !== 0) {
+            $errors[] = "Unexpected argument '$arg'.";
+            continue;
+        }
+
+        $key = substr($arg, 2);
+        if ($key === '' || $key === false) {
+            $errors[] = "Unexpected argument '--'.";
+            continue;
+        }
+
+        $value = null;
+        $eq = strpos($key, '=');
+        if ($eq !== false) {
+            $value = substr($key, $eq + 1);
+            $value = ($value === false) ? '' : $value;
+            $key = substr($key, 0, $eq);
+        }
+
+        if ($key === 'help') {
+            $opts['help'] = true;
+            continue;
+        }
+
+        if (!in_array($key, $allowedFlags, true)) {
+            $errors[] = "Unknown flag '--$key'.";
+            // Consume a space-separated value so it doesn't also error as a bare argument
+            if ($value === null && $i + 1 < $count && strpos($args[$i + 1], '--') !== 0) {
                 $i++;
+            }
+            continue;
+        }
+
+        if ($value === null) {
+            if ($i + 1 < $count && strpos($args[$i + 1], '--') !== 0) {
+                $i++;
+                $value = $args[$i];
             } else {
-                fwrite(STDERR, "Warning: Flag '$arg' has no value and will be ignored.\n");
+                $errors[] = "Flag '--$key' requires a value.";
+                continue;
             }
         }
-        $i++;
+
+        $opts[$key] = $value;
     }
 
-    return $opts;
+    return ['opts' => $opts, 'errors' => $errors];
 }
 
 // === Error Handling ===
@@ -563,6 +626,10 @@ Query XHGui profiling data from the CLI.
 Subcommands:
   runs            List recent profiling runs
   top-functions   Show function-level exclusive time breakdown
+
+Flags:
+  --version       Print the tool version
+  --help          Show this help
 
 Run 'ddev xhgui-query <subcommand> --help' for details.
 
