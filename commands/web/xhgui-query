@@ -20,5 +20,9 @@ fi
 export XHGUI_IS_TTY=0
 [ -t 1 ] && XHGUI_IS_TTY=1
 
-# exec replaces this shell -- PHP exit code becomes the command exit code
-exec php "$PHP_SCRIPT" "$@"
+# exec replaces this shell -- PHP exit code becomes the command exit code.
+# auto_prepend_file is blanked so the query tool is never profiled itself:
+# with profiling on, DDEV's xhprof prepend hooks CLI PHP too, and every
+# invocation would otherwise pollute the runs it queries (and steal the
+# "most recent run" default from the request being investigated).
+exec php -d auto_prepend_file= "$PHP_SCRIPT" "$@"
