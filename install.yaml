@@ -8,5 +8,13 @@ global_files: []
 pre_install_actions: []
 post_install_actions:
   - chmod +x ${DDEV_APPROOT}/.ddev/commands/web/xhgui-query
+# Robust regardless of whether DDEV removes project_files before or after
+# removal_actions run: delete query.php ourselves if it still carries the
+# #ddev-generated marker (user-modified copies are left alone), then clear
+# the directory if empty.
 removal_actions:
-  - rmdir ${DDEV_APPROOT}/.ddev/xhgui-cli 2>/dev/null || true
+  - |
+    if [ -f "${DDEV_APPROOT}/.ddev/xhgui-cli/query.php" ] && grep -q '#ddev-generated' "${DDEV_APPROOT}/.ddev/xhgui-cli/query.php"; then
+      rm -f "${DDEV_APPROOT}/.ddev/xhgui-cli/query.php"
+    fi
+    rmdir "${DDEV_APPROOT}/.ddev/xhgui-cli" 2>/dev/null || true

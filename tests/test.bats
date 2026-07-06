@@ -70,6 +70,27 @@ PHPEOF
   run ddev xhgui-query --help
   [ "$status" -eq 0 ]
   [[ "$output" == *"subcommand"* ]]
+
+  # Version flag reports the tool version
+  run ddev xhgui-query --version
+  [ "$status" -eq 0 ]
+  [[ "$output" == xhgui-cli* ]]
+}
+
+@test "addon removes cleanly" {
+  cd "$TESTDIR"
+  install_addon
+
+  # Both installed files exist before removal
+  [ -f "$TESTDIR/.ddev/commands/web/xhgui-query" ]
+  [ -f "$TESTDIR/.ddev/xhgui-cli/query.php" ]
+
+  ddev add-on remove xhgui-cli
+
+  # Files and the xhgui-cli directory are gone
+  [ ! -f "$TESTDIR/.ddev/commands/web/xhgui-query" ]
+  [ ! -f "$TESTDIR/.ddev/xhgui-cli/query.php" ]
+  [ ! -d "$TESTDIR/.ddev/xhgui-cli" ]
 }
 
 @test "runs returns results after profiling" {
@@ -159,6 +180,16 @@ PHPEOF
   run ddev xhgui-query notreal
   [ "$status" -eq 1 ]
   [[ "$output" == *"Unknown subcommand"* ]]
+
+  # Unknown flags are also usage errors, not silently ignored
+  run ddev xhgui-query runs --bogus 5
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Unknown flag '--bogus'"* ]]
+
+  # --flag=value syntax is accepted (DB may be unreachable here, so only
+  # assert it is not rejected as a usage error)
+  run ddev xhgui-query runs --limit=5
+  [ "$status" -ne 1 ]
 }
 
 @test "empty results exit 0 with valid JSON" {

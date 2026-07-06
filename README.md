@@ -105,7 +105,7 @@ Exit codes: 0 ok, 1 usage error, 2 infra (profiling off / DB down), 3 data (bad 
 
 ## Command reference
 
-Run `ddev xhgui-query --help`, or `ddev xhgui-query <subcommand> --help`, for inline usage. Flags take a space-separated value (`--limit 5`, not `--limit=5`).
+Run `ddev xhgui-query --help`, or `ddev xhgui-query <subcommand> --help`, for inline usage. `ddev xhgui-query --version` prints the tool version. Flags accept `--flag value` or `--flag=value`; unknown flags and missing values are usage errors (exit 1).
 
 ### `runs`
 

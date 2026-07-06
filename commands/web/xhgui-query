@@ -12,7 +12,7 @@ PHP_SCRIPT="${SCRIPT_DIR}/../../xhgui-cli/query.php"
 
 if [ ! -f "$PHP_SCRIPT" ]; then
   echo "Error: query.php not found at $PHP_SCRIPT" >&2
-  echo "Try reinstalling: ddev add-on get owner/ddev-xhgui-cli" >&2
+  echo "Try reinstalling: ddev add-on get joshuapease/ddev-xhgui-cli" >&2
   exit 2
 fi
 

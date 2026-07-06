@@ -17,12 +17,19 @@ permissions:
 
 jobs:
   php-unit:
+    # 7.1 is the documented floor (query.php runs on the project's own PHP);
+    # 8.4 is current. Both lint and run the full unit suite.
+    strategy:
+      matrix:
+        php-version: ["7.1", "8.4"]
+      fail-fast: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.1"
+          php-version: "${{ matrix.php-version }}"
+      - run: php -l xhgui-cli/query.php
       - run: |
           failed=0
           for f in tests/php/*.php; do
