@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DDEV add-on that provides a CLI for querying XHGui profiling data. Two subcommands: `runs` (list profiling runs) and `top-functions` (function-level exclusive time breakdown). Output auto-detects TTY for table vs JSON format.
+DDEV add-on that provides a CLI for querying XHGui profiling data. Three subcommands: `runs` (list profiling runs), `top-functions` (function-level exclusive time breakdown), and `callers` (per-caller cost breakdown for one function). Output auto-detects TTY for table vs JSON format.
 
 ## Architecture
 
@@ -15,6 +15,8 @@ DDEV add-on that provides a CLI for querying XHGui profiling data. Two subcomman
 ### Key algorithm
 
 `computeExclusiveTimes()` computes exclusive times from XHProf's caller==>callee format: inclusive totals are accumulated per function, then children's inclusive times are subtracted. Negative values are floored to 0 (XHProf shared-callee limitation).
+
+`computeCallers()` walks the same edge map for one target function: it collects every `caller==>target` edge with its metrics and computes each edge's share of the target's inclusive total (the same total `top-functions` reports). `loadRunProfile()` is the shared run-resolution + blob-decode path for both `top-functions` and `callers`.
 
 ### Testing guard
 
@@ -55,4 +57,5 @@ Caveat: DDEV collapses any nonzero exit from a custom command to 1, so `ddev xhg
 - PHP uses manual `--flag value` arg parsing (not `getopt()`) for BSD compatibility
 - Errors go to STDERR; structured JSON errors also echo to STDOUT when format is JSON
 - The bash wrapper uses `ExecRaw: true` so PHP's exit code becomes the in-container command exit code (the `ddev` host process still collapses failures to 1; see Exit Codes)
+- The bash wrapper runs PHP with `-d auto_prepend_file=` — with profiling on, DDEV's xhprof prepend hooks CLI PHP too, and without this the tool's own invocations get recorded as runs and hijack the "most recent run" default
 - MySQL/MariaDB only — no PostgreSQL support

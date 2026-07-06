@@ -15,7 +15,7 @@ DDEV ships XHGui built in (v1.24.4+), but only as a web dashboard.
 This add-on puts the same profiling data on stdout, where an agent can act on it. An agent working in a DDEV project can close the whole loop from the terminal:
 
 1. **Generate traffic.** Turn profiling on (`ddev xhgui on`) and hit the app: `curl` a URL, or drive it with a browser MCP tool for JS-heavy flows.
-2. **Query the profiles.** `ddev xhgui-query runs` finds the slow requests; `ddev xhgui-query top-functions` shows which functions made one slow.
+2. **Query the profiles.** `ddev xhgui-query runs` finds the slow requests; `ddev xhgui-query top-functions` shows which functions made one slow; `ddev xhgui-query callers` shows who calls a hot function when its name alone isn't greppable.
 3. **Fix it in the code.** Grep the hot function names in the project source, read the implicated code, propose a change.
 
 ## Installation
@@ -75,14 +75,20 @@ App\Repository\ProductRepository::all   40     82.0            85.0            1
 Twig\Template::render                   12     45.3            120.5           44.1           2.1
 PDO::query                              47     30.2            31.0            0.9            0.1
 
-# Now leave the profiler behind and go to the source.
+# PDO::query is internal — there is no source file to open. Ask who calls it.
+$ ddev xhgui-query callers --function PDO::query
+CALLER                                  CALLS  WALL (ms)  WALL %  CPU (ms)  MEM (MB)
+App\Repository\ProductRepository::all  40     25.5       82.3    0.7       0.1
+App\Session\DbHandler::read            7      5.5        17.7    0.2       0.0
+
+# 82% of PDO::query time comes through ProductRepository::all. Go to the source.
 $ grep -rn "function all" src/Repository/ProductRepository.php
 27:    public function all(): array
 ```
 
 From here the agent reads `ProductRepository::all()`, sees it runs one query per product inside a loop, and proposes batching the load into a single query. The profiler pointed at the function; the fix happens in the codebase.
 
-Some names have no source to open. Internal functions like `PDO::query` or `preg_match`, and closures reported as `{closure}`, are not in your project. Read them as a signal about the *kind* of work that is hot (database, regex, a callback) and grep for the userland code that calls them.
+Some names have no source to open. Internal functions like `PDO::query` or `preg_match`, and closures reported as `{closure}`, are not in your project. That's what `callers` is for: it splits the internal function's cost across the userland functions that call it, so the trail leads back to code you can edit.
 
 ### Teach your agent this workflow
 
@@ -97,7 +103,9 @@ To investigate PHP performance:
 2. Visit the slow page(s) AFTER enabling — only new requests get profiled.
 3. List runs slowest-first: `ddev xhgui-query runs --sort wt`
 4. Break one down: `ddev xhgui-query top-functions --run-id <id>`
-5. Grep the hot function names in the source, read them, and optimize.
+5. If a hot function is internal (PDO::query, preg_match, {closure}), find the
+   userland code responsible: `ddev xhgui-query callers --function <name>`
+6. Grep the hot function names in the source, read them, and optimize.
 
 Piped output is JSON (`--format json` forces it); a terminal gets a table.
 Exit code: 0 ok, 1 any failure. In JSON mode stdout always parses; on failure
@@ -195,12 +203,69 @@ PDO::query                              47     30.2            31.0            0
 }
 ```
 
+### `callers`
+
+Show which functions call a given function, and how much of its cost arrives through each caller. This is the drill-down for hot functions you can't grep — internal functions (`PDO::query`, `preg_match`), closures, vendor methods. Decodes the same single profile blob as `top-functions`.
+
+```bash
+ddev xhgui-query callers --function <name> [--run-id ID] [--limit 10] [--sort wt|cpu|pmu] [--format table|json]
+```
+
+| Flag         | Default    | Description                                                    |
+| ------------ | ---------- | -------------------------------------------------------------- |
+| `--function` | (required) | Exact function name as reported by `top-functions`             |
+| `--run-id`   | (latest)   | Target a specific run (24 hex characters)                      |
+| `--limit`    | 10         | Number of callers (1–1000)                                     |
+| `--sort`     | `wt`       | Sort callers by their edge's: `wt`, `cpu`, `pmu`               |
+| `--format`   | auto       | `table` in a terminal, `json` when piped                       |
+
+If the function does not appear anywhere in the run's profile, that's a data error (`error.code` 3) — check the exact spelling against `top-functions` output. A function that exists but has no callers (an entry point like `main()`) succeeds with an empty list.
+
+**Table output:**
+
+```
+CALLER                                  CALLS  WALL (ms)  WALL %  CPU (ms)  MEM (MB)
+App\Repository\ProductRepository::all  40     25.5       82.3    0.7       0.1
+App\Session\DbHandler::read            7      5.5        17.7    0.2       0.0
+```
+
+**JSON output:**
+
+```json
+{
+  "run_id": "abc123def456789012345678",
+  "url": "/shop/products",
+  "timestamp": "2026-07-06T14:23:00Z",
+  "function": "PDO::query",
+  "total": {
+    "call_count": 47,
+    "wall_time_us": 31000,
+    "cpu_time_us": 900,
+    "peak_memory_bytes": 104857
+  },
+  "callers": [
+    {
+      "caller": "App\\Repository\\ProductRepository::all",
+      "call_count": 40,
+      "wall_time_us": 25500,
+      "cpu_time_us": 700,
+      "peak_memory_bytes": 83886,
+      "wall_time_pct": 82.3,
+      "cpu_time_pct": 77.8,
+      "peak_memory_pct": 80.0
+    }
+  ]
+}
+```
+
+`total` is the function's inclusive cost across all callers — the same number `top-functions` reports as inclusive — and each `*_pct` is that caller's edge as a share of it. XHProf reports metrics per call edge (caller → callee pair), so these are exact attributions, not estimates.
+
 ### Messages on stderr
 
 Data goes to stdout; commentary goes to stderr, so it never corrupts a JSON pipe.
 
-- When `top-functions` runs without `--run-id`, it picks the newest run and notes which on stderr: `Using most recent run: <id> (<url>, <date>)`.
-- When a query has no results, stdout still holds valid JSON (`[]` for `runs`, an object with `"functions": []` for `top-functions`) and stderr explains: `No profiling runs found. Run 'ddev xhgui on' and visit pages to generate data.`
+- When `top-functions` or `callers` runs without `--run-id`, it picks the newest run and notes which on stderr: `Using most recent run: <id> (<url>, <date>)`.
+- When a query has no results, stdout still holds valid JSON (`[]` for `runs`, an object with `"functions": []` for `top-functions`, `"callers": []` for `callers`) and stderr explains why (no runs found, or the function has no callers).
 - A profile blob over 20 MB prints `Warning: Large profile blob (N.N MB). This may take a moment.` before decoding.
 
 ## How it works
@@ -292,7 +357,7 @@ Sum inclusive time per function, sum each function's direct children, then subtr
 
 - MySQL/MariaDB only. No PostgreSQL.
 - No aggregation across runs (no averages or percentiles). Each query looks at runs individually.
-- No per-function drill-down. `top-functions` ranks functions but does not list a function's callers or callees.
+- Drill-down is callers-only. `callers` lists who calls a function; there is no `callees` view of what a function calls.
 - JSON schemas, flag names, and envelope error codes are stable within a major version. This is pre-1.0, so they may still change before 1.0.0.
 
 ## Uninstall
