@@ -122,8 +122,9 @@ PHPEOF
   install_addon
   generate_profile_data
 
+  # --format=json exercises the =-syntax on the success path
   local json_output
-  json_output=$(ddev xhgui-query runs --format json)
+  json_output=$(ddev xhgui-query runs --format=json)
 
   # Validate it's parseable JSON using php (available in all environments)
   echo "$json_output" | php -r '
@@ -186,10 +187,15 @@ PHPEOF
   [ "$status" -eq 1 ]
   [[ "$output" == *"Unknown flag '--bogus'"* ]]
 
-  # --flag=value syntax is accepted (DB may be unreachable here, so only
-  # assert it is not rejected as a usage error)
+  # --flag=value syntax is accepted end-to-end. ddev collapses any nonzero
+  # exit from a custom command to 1 at the host level, so assert on the JSON
+  # envelope, not $status: no xhgui DB exists in this test, so a correctly
+  # parsed --limit=5 reaches the DB step and reports code 2 (infra), not a
+  # code 1 usage error.
   run ddev xhgui-query runs --limit=5
-  [ "$status" -ne 1 ]
+  [[ "$output" != *"Unknown flag"* ]]
+  [[ "$output" != *"requires a value"* ]]
+  [[ "$output" == *'"code": 2'* ]]
 }
 
 @test "empty results exit 0 with valid JSON" {

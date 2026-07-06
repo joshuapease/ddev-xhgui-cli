@@ -41,14 +41,18 @@ Integration tests create a temporary DDEV project, install the add-on, generate 
 
 ## Exit Codes
 
+query.php exits with, and the JSON error envelope (`error.code`) carries:
+
 - 0: Success (including empty results)
 - 1: Usage error (invalid flag/subcommand)
 - 2: Infrastructure error (DB unreachable)
 - 3: Data error (run ID not found)
 
+Caveat: DDEV collapses any nonzero exit from a custom command to 1, so `ddev xhgui-query` itself exits only 0 or 1 on the host. Integration tests must assert failure classes via the JSON envelope, never via `$status`.
+
 ## Conventions
 
 - PHP uses manual `--flag value` arg parsing (not `getopt()`) for BSD compatibility
 - Errors go to STDERR; structured JSON errors also echo to STDOUT when format is JSON
-- The bash wrapper uses `ExecRaw: true` so PHP's exit code becomes the DDEV command exit code
+- The bash wrapper uses `ExecRaw: true` so PHP's exit code becomes the in-container command exit code (the `ddev` host process still collapses failures to 1; see Exit Codes)
 - MySQL/MariaDB only — no PostgreSQL support
