@@ -100,7 +100,9 @@ To investigate PHP performance:
 5. Grep the hot function names in the source, read them, and optimize.
 
 Piped output is JSON (`--format json` forces it); a terminal gets a table.
-Exit codes: 0 ok, 1 usage error, 2 infra (profiling off / DB down), 3 data (bad run id).
+Exit code: 0 ok, 1 any failure. In JSON mode stdout always parses; on failure
+it is {"error":{"code":N,...}} — 1 usage, 2 infra (profiling off / DB down),
+3 data (bad run id).
 ```
 
 ## Command reference
@@ -265,15 +267,14 @@ Sum inclusive time per function, sum each function's direct children, then subtr
 - **Format.** Table in a terminal, JSON when piped. `--format table|json` overrides the auto-detection either way.
 - **Streams.** stdout is data. stderr is commentary (the "using most recent run" note, empty-result messages, warnings). Reading stdout alone always gives you clean data.
 - **Units.** JSON uses raw microseconds for time and bytes for memory, with no rounding, so it stays precise for scripts. Tables convert to milliseconds and MB, rounded to one decimal, for reading.
-- **Errors in JSON mode.** Failures print a message to stderr and also emit a parseable envelope to stdout: `{"error": {"code": N, "message": "..."}}`. Stdout stays valid JSON.
-- **Exit codes:**
+- **Errors in JSON mode.** Failures print a message to stderr and also emit a parseable envelope to stdout: `{"error": {"code": N, "message": "..."}}`. Stdout stays valid JSON. DDEV adds its own `Failed to run ...` line on failure; it goes to stderr, never stdout.
+- **Exit codes and error classes.** `ddev xhgui-query` exits 0 on success (including empty results) and 1 on any failure — DDEV collapses custom-command exit codes, so the shell can't see more than pass/fail. To tell failure classes apart, read `error.code` from the JSON envelope:
 
-  | Code | Meaning              | Example                                                      |
-  | ---- | -------------------- | ------------------------------------------------------------ |
-  | 0    | Success              | Results returned, or an empty result set                     |
-  | 1    | Usage error          | Unknown subcommand, invalid `--format`/`--sort`, bad `--limit` |
-  | 2    | Infrastructure error | Database unreachable, XHGui not enabled, PostgreSQL project  |
-  | 3    | Data error           | `--run-id` not found, or its profile is empty or corrupt     |
+  | `error.code` | Meaning              | Example                                                      |
+  | ------------ | -------------------- | ------------------------------------------------------------ |
+  | 1            | Usage error          | Unknown subcommand or flag, invalid `--format`/`--sort`, bad `--limit` |
+  | 2            | Infrastructure error | Database unreachable, XHGui not enabled, PostgreSQL project  |
+  | 3            | Data error           | `--run-id` not found, or its profile is empty or corrupt     |
 
 ## Troubleshooting
 
@@ -281,9 +282,9 @@ Sum inclusive time per function, sum each function's direct children, then subtr
 
 **It worked, then stopped after a restart.** `ddev restart` turns profiling off (already-collected runs remain queryable). Run `ddev xhgui on` again and re-visit the pages you want to profile.
 
-**"XHGui database not found" (exit 2).** XHGui has never been enabled on this project. Run `ddev xhgui on`. If profiling still doesn't start, set the mode once with `ddev config global --xhprof-mode=xhgui && ddev restart`.
+**"XHGui database not found" (error code 2).** XHGui has never been enabled on this project. Run `ddev xhgui on`. If profiling still doesn't start, set the mode once with `ddev config global --xhprof-mode=xhgui && ddev restart`.
 
-**"Unsupported database" (exit 2).** This tool queries a MySQL/MariaDB `xhgui` database. DDEV's XHGui integration and this add-on do not support PostgreSQL.
+**"Unsupported database" (error code 2).** This tool queries a MySQL/MariaDB `xhgui` database. DDEV's XHGui integration and this add-on do not support PostgreSQL.
 
 **Table timestamps look off by a few hours.** The `DATE` column and the "using most recent run" note use the web container's local time, which DDEV defaults to UTC unless the project sets a `timezone`. JSON `timestamp` fields are always UTC in ISO 8601 (for example `2026-07-06T14:23:00Z`).
 
@@ -292,7 +293,7 @@ Sum inclusive time per function, sum each function's direct children, then subtr
 - MySQL/MariaDB only. No PostgreSQL.
 - No aggregation across runs (no averages or percentiles). Each query looks at runs individually.
 - No per-function drill-down. `top-functions` ranks functions but does not list a function's callers or callees.
-- JSON schemas, flag names, and exit codes are stable within a major version. This is pre-1.0, so they may still change before 1.0.0.
+- JSON schemas, flag names, and envelope error codes are stable within a major version. This is pre-1.0, so they may still change before 1.0.0.
 
 ## Uninstall
 
