@@ -78,6 +78,10 @@ $result = parseArgs(['--run-id', 'abc'], FLAGS_TOP_FUNCTIONS);
 assertTest($result['errors'] === [], '--run-id accepted for top-functions');
 $result = parseArgs(['--url', '/x'], FLAGS_TOP_FUNCTIONS);
 assertTest(count($result['errors']) === 1, '--url rejected for top-functions');
+$result = parseArgs(['--function', 'PDO::query'], FLAGS_CALLERS);
+assertTest($result['errors'] === [] && $result['opts']['function'] === 'PDO::query', '--function accepted for callers');
+$result = parseArgs(['--function', 'PDO::query'], FLAGS_RUNS);
+assertTest(count($result['errors']) === 1, '--function rejected for runs');
 
 // --- Test 8: Duplicate flags (last wins) ---
 echo "\nTest: Duplicate flags (last wins)\n";

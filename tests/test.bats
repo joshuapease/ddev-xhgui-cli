@@ -41,14 +41,19 @@ wait_for_profile_data() {
 }
 
 generate_profile_data() {
-  # Create a PHP page that does some work
+  # Create a PHP page that does some work. The work lives in a named function
+  # so the profile is guaranteed to contain a caller edge (main() ==> it),
+  # which the callers test relies on.
   cat > "$TESTDIR/index.php" <<'PHPEOF'
 <?php
-$sum = 0;
-for ($i = 0; $i < 10000; $i++) {
-    $sum += sqrt($i);
+function xhgui_cli_test_work() {
+    $sum = 0;
+    for ($i = 0; $i < 10000; $i++) {
+        $sum += sqrt($i);
+    }
+    return $sum;
 }
-echo "Hello from xhgui-cli test. Sum: $sum";
+echo "Hello from xhgui-cli test. Sum: " . xhgui_cli_test_work();
 PHPEOF
 
   # Enable profiling (must be done after restart since restart disables it)
@@ -172,6 +177,65 @@ PHPEOF
     if (count($data["functions"]) === 0) { echo "Expected at least one function\n"; exit(1); }
     echo "VALID\n";
   '
+}
+
+@test "callers shows who calls a function" {
+  cd "$TESTDIR"
+  install_addon
+  generate_profile_data
+
+  local runs_before
+  runs_before=$(ddev mysql -udb -pdb xhgui -N -e "SELECT COUNT(*) FROM results")
+
+  # The test page wraps its work in xhgui_cli_test_work(), so that function
+  # is guaranteed to appear in the profile with main() as its caller.
+  local json_output
+  json_output=$(ddev xhgui-query callers --function xhgui_cli_test_work --format json)
+
+  echo "$json_output" | php -r '
+    $data = json_decode(file_get_contents("php://stdin"), true);
+    if (!is_array($data)) { echo "INVALID JSON\n"; exit(1); }
+    if (!isset($data["function"]) || $data["function"] !== "xhgui_cli_test_work") { echo "Missing function\n"; exit(1); }
+    if (!isset($data["total"]["wall_time_us"])) { echo "Missing total\n"; exit(1); }
+    if (count($data["callers"]) === 0) { echo "Expected at least one caller\n"; exit(1); }
+    $callers = array_column($data["callers"], "caller");
+    if (!in_array("main()", $callers, true)) { echo "Expected main() among callers\n"; exit(1); }
+    if (!isset($data["callers"][0]["wall_time_pct"])) { echo "Missing wall_time_pct\n"; exit(1); }
+    echo "VALID\n";
+  '
+
+  # Table mode has the drill-down columns
+  run ddev xhgui-query callers --function xhgui_cli_test_work --format table
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"CALLER"* ]]
+  [[ "$output" == *"WALL %"* ]]
+
+  # End-to-end pipe: a name reported by top-functions is directly usable
+  local func
+  func=$(ddev xhgui-query top-functions --format json --limit 1 | php -r '
+    $data = json_decode(file_get_contents("php://stdin"), true);
+    echo $data["functions"][0]["function"];
+  ')
+  run ddev xhgui-query callers --function "$func" --format json
+  [ "$status" -eq 0 ]
+
+  # Missing --function is a usage error. ddev collapses nonzero exits to 1,
+  # so assert the class via the JSON envelope, never $status.
+  run ddev xhgui-query callers --format json
+  [[ "$output" == *'"code": 1'* ]]
+  [[ "$output" == *"--function is required"* ]]
+
+  # A function that is not in the run is a data error (envelope code 3)
+  run ddev xhgui-query callers --function not_a_real_function_xyz --format json
+  [[ "$output" == *'"code": 3'* ]]
+
+  # Regression: the tool must not profile itself. Profiling is on for this
+  # whole test, and the wrapper blanks auto_prepend_file — none of the query
+  # invocations above may have appeared as new runs (they would otherwise
+  # hijack the "most recent run" default).
+  local runs_after
+  runs_after=$(ddev mysql -udb -pdb xhgui -N -e "SELECT COUNT(*) FROM results")
+  [ "$runs_after" -eq "$runs_before" ]
 }
 
 @test "unknown subcommand exits 1 with usage message" {
