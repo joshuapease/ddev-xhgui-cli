@@ -8,7 +8,7 @@ JSON schemas, flag names, and envelope error codes may still change before 1.0.0
 
 ## [Unreleased]
 
-## [0.1.1] - 2026-07-06
+## [0.1.1] - 2026-07-07
 
 ### Added
 
