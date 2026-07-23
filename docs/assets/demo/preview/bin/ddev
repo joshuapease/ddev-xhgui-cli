@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Mock `ddev` for the demo PREVIEW render only (demo-preview.tape).
+#
+# Emits the exact sample output documented in README.md so vhs can render a
+# styling preview without a live DDEV project. NOT used for the real render —
+# demo.tape uses the real ddev binary. Keep this in sync with README.md.
+set -euo pipefail
+
+cmd="${1:-}"
+
+case "$cmd" in
+  xhgui)
+    # e.g. `ddev xhgui on`
+    echo "Enabled xhprof profiling (mode: xhgui). Visit a page to record a run."
+    ;;
+  xhgui-query)
+    shift
+    sub="${1:-}"
+    case "$sub" in
+      runs)
+        cat <<'EOF'
+RUN ID       URL              WALL (ms)  CPU (ms)  PEAK MEM (MB)  DATE
+abc123def45  /shop/products   450.1      120.3     8.0            2026-07-06 14:23
+def456ghi78  /shop/cart       280.5      95.1      6.2            2026-07-06 14:22
+EOF
+        ;;
+      top-functions)
+        echo "Using most recent run: abc123def456789012345678 (/shop/products, 2026-07-06 14:23)" >&2
+        cat <<'EOF'
+FUNCTION                                CALLS  EXCL WALL (ms)  INCL WALL (ms)  EXCL CPU (ms)  EXCL MEM (MB)
+App\Repository\ProductRepository::all   40     82.0            85.0            1.8            0.4
+Twig\Template::render                   12     45.3            120.5           44.1           2.1
+PDO::query                              47     30.2            31.0            0.9            0.1
+EOF
+        ;;
+      callers)
+        echo "Using most recent run: abc123def456789012345678 (/shop/products, 2026-07-06 14:23)" >&2
+        cat <<'EOF'
+CALLER                                  CALLS  WALL (ms)  WALL %  CPU (ms)  MEM (MB)
+App\Repository\ProductRepository::all  40     25.5       82.3    0.7       0.1
+App\Session\DbHandler::read            7      5.5        17.7    0.2       0.0
+EOF
+        ;;
+      *)
+        echo "mock ddev xhgui-query: unhandled subcommand '${sub}'" >&2
+        exit 1
+        ;;
+    esac
+    ;;
+  *)
+    echo "mock ddev: unhandled command '${cmd}'" >&2
+    exit 1
+    ;;
+esac

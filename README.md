@@ -6,7 +6,7 @@
 
 Read [XHGui](https://github.com/perftools/xhgui) PHP profiling data from the terminal. Built so that you or your AI coding agents can find slow requests, and the functions behind them, without opening a browser.
 
-<!-- TODO: demo GIF (see release plan Phase 4) -->
+![Terminal demo: ddev xhgui-query listing slow runs, breaking one down with top-functions, tracing PDO::query back to the source with callers](docs/assets/demo/demo-preview.gif)
 
 ## Why this exists
 

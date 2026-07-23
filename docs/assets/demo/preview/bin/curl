@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Mock `curl` for the demo PREVIEW render only. The demo discards curl's output
+# (`>/dev/null`), so this returns instantly instead of making a real request.
+exit 0
